@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pipeline Profile DXF Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" onerror="var s=document.createElement('script');s.src='xlsx.full.min.js';document.head.appendChild(s)"></script>
+<style>
+:root{--bg:#eef3f9;--card:#fff;--ink:#12203a;--mut:#5a6b85;--line:#dbe4f0;--acc:#0e7c86;--acc2:#2563eb;--ak:#fff;--warn:#c2410c;--ok:#15803d;--tint:rgba(14,124,134,.07);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a1220;--card:#121d30;--ink:#e8eef8;--mut:#93a4bd;--line:#243650;--acc:#2dd4bf;--acc2:#60a5fa;--ak:#04222a;--warn:#fb923c;--ok:#4ade80;--tint:rgba(45,212,191,.08)}}
+:root[data-theme="dark"]{--bg:#0a1220;--card:#121d30;--ink:#e8eef8;--mut:#93a4bd;--line:#243650;--acc:#2dd4bf;--acc2:#60a5fa;--ak:#04222a;--warn:#fb923c;--ok:#4ade80;--tint:rgba(45,212,191,.08)}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 48px}
+.hero{padding:22px 26px;margin-bottom:18px;border-radius:20px;color:#fff;background:linear-gradient(120deg,#0b2545,#0e7c86)}
+h1{font-size:25px;margin:0 0 4px}.hero p{margin:0;color:rgba(255,255,255,.85)}
+.card{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--acc);border-radius:16px;padding:18px;margin-bottom:16px}
+h2{font-size:16px;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+label{display:block;font-size:13px;font-weight:650;margin-bottom:5px}
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+input[type=file]{border:2px dashed var(--acc);background:var(--tint);cursor:pointer}
+input[type=file]::file-selector-button{margin-right:12px;padding:7px 14px;border:0;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;color:var(--ak);background:linear-gradient(135deg,var(--acc),var(--acc2))}
+input[type=checkbox]{width:auto;accent-color:var(--acc);margin-right:6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+button{background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--ak);border:0;border-radius:10px;padding:9px 15px;font:inherit;font-weight:650;cursor:pointer}
+button.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.msg{font-size:13px;margin-top:10px;padding:8px 12px;border-radius:10px;background:var(--bg);border-left:3px solid var(--line)}
+.ok{border-left-color:var(--ok)}.err{border-left-color:var(--warn);color:var(--warn)}.small{font-size:13px;color:var(--mut)}
+canvas{width:100%;height:330px;display:block;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin-top:12px}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:7px 11px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}tr.sel td{background:var(--tint);font-weight:700}
+code{background:var(--tint);padding:1px 6px;border-radius:6px;font-size:12.5px}
+ul{margin:6px 0 0 18px;padding:0}.hide{display:none}
+</style></head><body><main>
+<header class="hero"><h1>Pipeline Profile DXF Generator</h1><p>Upload the profile point file (.csv or .xlsx: Point No., Easting, Northing, Elevation, Point Description) and get the profile DXF with slope-chainage and elevation bands, in the same layout as the DOS program’s output.</p></header>
+
+<div class="card"><label for="csv" style="font-size:15px">Points file</label>
+<input id="csv" type="file" accept=".csv,.txt,.xlsx,.xls"><div id="csvMsg" class="msg small">Columns: Point No., Easting, Northing, Elevation, Point Description. Optional: Slope / Horizontal Chainage.</div>
+<div class="grid" style="margin-top:12px">
+<div><label for="hz">Horizontal 1:</label><input id="hz" type="number" value="2000" min="1"></div>
+<div><label for="vt">Vertical 1:</label><input id="vt" type="number" value="200" min="1"></div>
+<div><label for="dat">Datum (m, blank = auto)</label><input id="dat" type="number" step="any" placeholder="auto"></div>
+<div><label for="shift">Move chainage/elevation text right (m)</label><input id="shift" type="number" step="0.1" value="1.4"></div></div>
+<div class="row" style="display:block"><label style="font-weight:500"><input type="checkbox" id="useCh" checked>Use chainage columns if the file has them (otherwise computed from Easting/Northing/Elevation)</label>
+<label style="font-weight:500"><input type="checkbox" id="split">Split into sheets at SHEET-n-END in the description</label>
+<label style="font-weight:500"><input type="checkbox" id="cmt" checked>Draw point descriptions as comments on the profile</label>
+<label style="font-weight:500"><input type="checkbox" id="dup" checked>Add the start/end duplicates PROFDXF.LSP expects (it deletes them)</label></div>
+<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><label style="font-size:14px">Overlap clean-up (like PROFTHIN)</label>
+<label style="font-weight:500"><input type="checkbox" id="thin" checked>Hide interval labels that would overlap (kept for points with comments, first and last point)</label>
+<div class="grid"><div><label for="hmode">Hidden labels</label><select id="hmode"><option value="frozen">Move to frozen layer P999 (thaw to see them)</option><option value="omit">Leave out of the DXF</option></select></div>
+<div><label for="minmm">Minimum label spacing (mm)</label><input id="minmm" type="number" step="0.1" value="2.1" min="0.5"></div>
+<div><label for="sp">Spread spacing (mm, blank = 1.5 text heights)</label><input id="sp" type="number" step="0.1" placeholder="auto"></div></div>
+<label style="font-weight:500;margin-top:8px"><input type="checkbox" id="stag" checked>Spread crowded comments sideways with leader lines</label>
+<label style="font-weight:500;margin-top:8px"><input type="checkbox" id="leg" checked>Dog-leg the band lines of crowded features into free label slots</label>
+<label for="rules" style="margin-top:6px">Priority rules (tier, match, pattern, protect) - protected comments are never hidden; unlisted comments are protected too</label>
+<textarea id="rules" rows="7" spellcheck="false" style="font:12px monospace"></textarea></div>
+<div class="grid" style="margin-top:6px"><div><label for="proj">Output name (taken from the file)</label><input id="proj" value="1234001M"></div></div></div>
+
+<div id="shCard" class="card hide"><h2>Profile DXF</h2>
+<div id="shMsg" class="msg"></div>
+<canvas id="cv" width="1000" height="330"></canvas>
+<div class="tw"><table id="tb"></table></div>
+<div class="row"><button id="dlSel">Download selected sheet (.DXF)</button><button id="dlAll" class="sec">Download all sheets (.zip)</button><span id="dlMsg" class="small"></span></div>
+<p class="small">The DXF files use the same names as the DOS program, for example <code>1234001P.DXF</code>. “Download all sheets” gives one zip.</p></div>
+
+<div class="card hide"><h2>Analyse PROFDXF.LSP</h2>
+<input id="lsp" type="file" accept=".lsp,.txt"><div id="lspMsg" class="msg small">Upload the AutoLISP routine to see what it does to the profile DXF and whether the generated file fits it.</div>
+<div id="rep"></div></div>
+<div id="dbCard" class="card hide"><h2>Server database</h2>
+<div id="dbMsg" class="msg small">Connecting to the database…</div>
+<div class="grid"><div><label for="dbName">Save current points as</label><input id="dbName" placeholder="e.g. 1234001M"></div></div>
+<div class="row"><button id="dbSave">Save points + settings</button><span class="small">Settings (scales, datum, options, rules) are also kept automatically for everyone using this page.</span></div>
+<div class="tw"><table id="dbList"></table></div></div>
+</main>
+<script>
+/* ---- standalone download helper ---- */
+async function getDownloads(){try{const d=await claude.use('downloads');if(d)return d}catch(e){}return {save:async({filename,data})=>{
+ const b=data instanceof Blob?data:new Blob([data],{type:'application/octet-stream'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(a.href),2000)}}}
+const $=id=>document.getElementById(id);
+const HEADER=" 0 \r\nSECTION\r\n 2 \r\nHEADER\r\n 9 \r\n$INSBASE\r\n 10 \r\n 0 \r\n 20 \r\n 0 \r\n 9 \r\n$LIMMIN\r\n 10 \r\n-100 \r\n 20 \r\n-100 \r\n 9 \r\n$LIMMAX\r\n 10 \r\n 740 \r\n 20 \r\n 140 \r\n 9 \r\n$SNAPMODE\r\n 70 \r\n 1 \r\n 9 \r\n$SNAPUNIT\r\n 10 \r\n .25 \r\n 20 \r\n .25 \r\n 9 \r\n$DRAGMODE\r\n 70 \r\n 2 \r\n 9 \r\n$LTSCALE\r\n 40 \r\n 1 \r\n 9 \r\n$TEXTSIZE\r\n 40 \r\n 2 \r\n 9 \r\n$TEXTSTYLE\r\n 7 \r\nSIMPLEX\r\n 9 \r\n$CLAYER\r\n 8 \r\n0\r\n 9 \r\n$CELTYPE\r\n 6 \r\nBYLAYER\r\n 9 \r\n$CECOLOR\r\n 62 \r\n 256 \r\n 9 \r\n$LUNITS\r\n 70 \r\n 2 \r\n 9 \r\n$LUPREC\r\n 70 \r\n 4 \r\n 9 \r\n$AUNITS\r\n 70 \r\n 0 \r\n 9 \r\n$AUPREC\r\n 70 \r\n 4 \r\n 9 \r\n$MENU\r\n 1 \r\nACAD\r\n 9 \r\n$LIMCHECK\r\n 70 \r\n 1 \r\n 9 \r\n$BLIPMODE\r\n 70 \r\n 1 \r\n 9 \r\n$ANGBASE\r\n 50 \r\n 90 \r\n 9 \r\n$ANGDIR\r\n 70 \r\n 1 \r\n 9 \r\n$COORDS\r\n 70 \r\n 2 \r\n 9 \r\n$PDMODE\r\n 70 \r\n 3 \r\n 9 \r\n$PDSIZE\r\n 40 \r\n .25 \r\n 0 \r\nENDSEC\r\n 0 \r\nSECTION\r\n 2 \r\nTABLES\r\n 0 \r\nTABLE\r\n 2 \r\nLTYPE\r\n 70 \r\n 9 \r\n 0 \r\nLTYPE\r\n 2 \r\nCONTINUOUS\r\n 70 \r\n 64 \r\n 3 \r\nSolid line\r\n 72 \r\n 65 \r\n 73 \r\n 0 \r\n 40 \r\n 0 \r\n 0 \r\nENDTAB\r\n 0 \r\nTABLE\r\n 2 \r\nLAYER\r\n 70 \r\n 59 \r\n 0 \r\nLAYER\r\n 2 \r\n0\r\n 70 \r\n 0 \r\n 62 \r\n 7 \r\n 6 \r\nCONTINUOUS\r\n 0 \r\nLAYER\r\n 2 \r\nF953\r\n 70 \r\n 0 \r\n 62 \r\n 7 \r\n 6 \r\nCONTINUOUS\r\n 0 \r\nENDTAB\r\n 0 \r\nTABLE\r\n 2 \r\nSTYLE\r\n 70 \r\n 2 \r\n 0 \r\nSTYLE\r\n 2 \r\nSIMPLEX\r\n 70 \r\n 0 \r\n 40 \r\n 0 \r\n 41 \r\n 1 \r\n 50 \r\n 0 \r\n 71 \r\n 0 \r\n 42 \r\n .5 \r\n 3 \r\nSIMPLEX\r\n 4 \r\n\r\n 0 \r\nSTYLE\r\n 2 \r\nMONOTXT\r\n 70 \r\n 0 \r\n 40 \r\n 0 \r\n 41 \r\n 1 \r\n 50 \r\n 0 \r\n 71 \r\n 0 \r\n 42 \r\n .5 \r\n 3 \r\nMONOTXT\r\n 4 \r\n\r\n 0 \r\nENDTAB\r\n 0 \r\nENDSEC\r\n 0 \r\nSECTION\r\n 2 \r\nENTITIES\r\n";
+let pts=[],sheets=[],sel=0,lspInfo=null;
+/* ---- number/text formats of the DOS program output ---- */
+const bn=v=>{let s=String(Number(v.toPrecision(15)));if(/e/i.test(s))s=v.toFixed(10);if(s.startsWith('0.'))s=s.slice(1);else if(s.startsWith('-0.'))s='-'+s.slice(2);if(s==='-0')s='0';return (s[0]==='-'?s:' '+s)+' '};
+const gc=c=>' '+c+' \r\n',P=(c,v)=>gc(c)+v+'\r\n',N=(c,v)=>P(c,bn(v));
+const r3=v=>Math.round(v*1000)/1000;
+function chtxt(c){const v=Math.floor(c*10+0.5+1e-9)/10,km=Math.floor(v/1000);return km+'+'+(v-km*1000).toFixed(1).padStart(5,'0')}
+const eltxt=e=>' '+(Math.floor(e*100+0.5+1e-9)/100).toFixed(2);
+const TEXT=(x,y,h,s,rot,st,l='F953')=>gc(0)+'TEXT\r\n'+gc(8)+l+'\r\n'+N(10,x)+N(20,y)+N(40,h)+gc(1)+s+'\r\n'+N(50,rot)+gc(7)+st+'\r\n'+N(72,0);
+const LINE=(a,b,c,d,l='F953')=>gc(0)+'LINE\r\n'+gc(8)+l+'\r\n'+N(10,a)+N(20,b)+N(11,c)+N(21,d);
+/* ---- CSV ---- */
+function parseCSV(t){t=t.replace(/^\uFEFF/,'');const R=[];let r=[],f='',q=false;
+ for(let i=0;i<t.length;i++){const c=t[i];
+  if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c==='"')q=true;else if(c===','||c===';'||c==='\t'){r.push(f);f=''}
+  else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);f='';if(r.some(x=>x!==''))R.push(r);r=[]}else f+=c}
+ if(f!==''||r.length){r.push(f);if(r.some(x=>x!==''))R.push(r)}return R}
+function parseCh(v){const t=String(v??'').trim(),m=t.match(/^(\d+)\+(\d+(?:\.\d+)?)$/);return m?+m[1]*1000+ +m[2]:parseFloat(t)}
+function loadPts(R){
+ let h=R[0].map(x=>x.trim().toLowerCase()),data=R.slice(1);
+ const idx=re=>h.findIndex(x=>re.test(x));
+ let ch=-1,sc=-1,n=idx(/^(s\.?no|point.?no|no|id)/),e=idx(/east/),no=idx(/north/),z=idx(/elev|^z$/),d=idx(/desc/);
+ if(e>=0){ch=idx(/horiz/);if(ch<0)ch=idx(/chainage/);sc=idx(/slope/);if(sc<0)sc=ch}
+ if(e<0||no<0||z<0){if(!isNaN(parseFloat(R[0][1]))){data=R;n=0;e=1;no=2;z=3;d=4}else return null}
+ return data.map(r=>({n:(r[n]??'').trim(),e:parseFloat(r[e]),y:parseFloat(r[no]),z:parseFloat(r[z]),d:(d>=0?(r[d]??'').trim():''),hc:ch>=0?parseCh(r[ch]):NaN,sc:sc>=0?parseCh(r[sc]):NaN})).filter(p=>isFinite(p.e)&&isFinite(p.y)&&isFinite(p.z))}
+/* ---- calculation ---- */
+function calc(){
+ const hz=+$('hz').value||2000,vt=+$('vt').value||200;
+ const H=[0],Sl=[0];
+ for(let i=1;i<pts.length;i++){const dx=pts[i].e-pts[i-1].e,dy=pts[i].y-pts[i-1].y,dz=pts[i].z-pts[i-1].z;
+  H.push(H[i-1]+r3(Math.hypot(dx,dy)));Sl.push(Sl[i-1]+r3(Math.sqrt(dx*dx+dy*dy+dz*dz)))}
+ const mn=Math.min(...pts.map(p=>p.z)),datum=$('dat').value!==''?+$('dat').value:Math.floor(mn/10)*10;
+ let used=false;
+ if($('useCh').checked&&pts.every(p=>isFinite(p.hc)&&isFinite(p.sc))){used=true;pts.forEach((p,i)=>{H[i]=p.hc;Sl[i]=p.sc})}
+ sheets=[];let a=0;
+ if($('split').checked){pts.forEach((p,i)=>{if(/SHEET-\d+-END/i.test(p.d)){sheets.push([a,i]);a=i}});if(a<pts.length-1||!sheets.length)sheets.push([a,pts.length-1])}
+ else sheets.push([0,pts.length-1]);
+ return {hz,vt,H,Sl,datum,used,kx:1000/hz,ky:1000/vt}}
+const DEF_RULES='1,prefix,PI-,1\n1,prefix,SHEET,1\n2,prefix,STA,1\n2,prefix,KM,1\n3,contains,WADI,1\n3,contains,WLP,1\n3,contains,ROAD,1\n3,contains,TRACK,1\n3,contains,RIGHT OF WAY,1\n3,contains,OHL,1\n4,prefix,WINDROW,0';
+$('rules').value=DEF_RULES;
+const getRules=()=>$('rules').value.split(/\r?\n/).map(l=>l.split(',').map(x=>x.trim())).filter(r=>r.length>=4&&/^\d+$/.test(r[0])).map(r=>({t:+r[0],m:r[1].toLowerCase(),p:r[2].toUpperCase(),pr:r[3]!=='0'})).sort((a,b)=>a.t-b.t);
+function isProt(d,R){const c=(d||'').trim().toUpperCase();if(!c)return false;for(const r of R)if(r.m==='prefix'?c.startsWith(r.p):c.includes(r.p))return r.pr;return true}
+const shiftU=()=>(+$('shift').value||0)*1000/(+$('hz').value||2000); /* metres in the final drawing -> sheet mm */
+function XY(k,C){const [a,b]=sheets[k],X=[],Y=[];for(let i=a;i<=b;i++){X.push(10+(C.H[i]-C.H[a])*C.kx);Y.push((pts[i].z-C.datum)*C.ky)}return [X,Y]}
+/* PROFTHIN-style clean-up: thin interval labels, then spread crowded comments */
+function plan(k,C,X,Y){
+ const [a,b]=sheets[k],n=b-a+1,keep=new Array(n).fill(true),stag={},lab={};let hid=0,spread=0,nudge=0;
+ if(!$('thin').checked)return {keep,stag,lab,hid,spread,nudge,leg:{},legd:{},descd:{},legs:0};
+ const R=getRules(),s=+$('minmm').value||2.1,pr=pts.slice(a,b+1).map((p,m)=>m===0||m===n-1||isProt(p.d,R));
+ const nextP=new Array(n).fill(Infinity);let nx=Infinity;
+ for(let m=n-1;m>=0;m--){nextP[m]=nx;if(pr[m])nx=X[m]}
+ let lastX=-Infinity;
+ for(let m=0;m<n;m++){
+  if(pr[m]){lastX=X[m];continue}
+  if(X[m]-lastX<s-1e-9||nextP[m]-X[m]<s-1e-9){keep[m]=false;hid++}else lastX=X[m]}
+ if($('stag').checked&&$('cmt').checked){
+  const h=2,trig=1.6*h,sp=Math.max(1.5*h,+$('sp').value||0);let cur=[];
+  const it=m=>({m,x:X[m],y:Y[m]+10,len:pts[a+m].d.length*0.8*h});
+  const flush=()=>{if(cur.length>1){const cx=cur.reduce((t,q)=>t+q.x,0)/cur.length;cur.forEach((q,i)=>{stag[q.m]=cx+(i-(cur.length-1)/2)*sp;spread++})}cur=[]};
+  for(let m=0;m<n;m++){
+   if(!keep[m]||!pts[a+m].d)continue;
+   const q=it(m);
+   if(cur.some(o=>q.x-o.x<trig&&q.y<o.y+o.len&&o.y<q.y+q.len))cur.push(q);else{flush();cur=[q]}}
+  flush()}
+  const leg={},legd={},descd={};let legs=0;
+  if($('leg').checked&&$('cmt').checked){
+   /* a comment that was spread sideways gets a straight vertical axis: the band line is dog-legged to the x of the comment leader end */
+   const lm=Object.keys(stag).map(Number).filter(m=>keep[m]).sort((p,q)=>X[p]-X[q]),lv={},ed=[];
+   lm.forEach(m=>{leg[m]=stag[m]-0.2;lv[m]=0;legs++});
+   /* level of each leg: choose the order of every pair of legs that avoids a crossing, then level by longest path */
+   const cf=(x1,t1,d1,x2,t2,d2)=>{const l1=Math.min(x1,t1),h1=Math.max(x1,t1),l2=Math.min(x2,t2),h2=Math.max(x2,t2),e=0.05,
+    in1=v=>v>l1+e&&v<h1-e,in2=v=>v>l2+e&&v<h2-e;
+    return (in1(x2)&&d2>=d1)||(in1(t2)&&d2<=d1)||(in2(x1)&&d1>=d2)||(in2(t1)&&d1<=d2)};
+   for(let i=0;i<lm.length;i++)for(let j=i+1;j<lm.length;j++){
+    const u=lm[i],v=lm[j],A=[X[u],leg[u]],B=[X[v],leg[v]];
+    const ok1=!cf(A[0],A[1],0,B[0],B[1],1),ok2=!cf(A[0],A[1],1,B[0],B[1],0);
+    const ov=Math.min(A[0],A[1])<Math.max(B[0],B[1])-0.05&&Math.min(B[0],B[1])<Math.max(A[0],A[1])-0.05;
+    if(ok1&&(!ok2||ov))ed.push([u,v]);else if(ok2&&!ok1)ed.push([v,u])}
+   for(let r=0;r<lm.length;r++)ed.forEach(([u,v])=>{if(lv[v]<lv[u]+1)lv[v]=lv[u]+1});
+   lm.forEach(m=>{legd[m]=0.4+0.45*Math.min(lv[m],8);descd[m]=7.5+0.3*Math.min(lv[m],6)})}
+  /* label placement: comment points first (legs fixed, others nudged), then interval labels only where they still fit */
+  {const fl=[];for(let m=0;m<n;m++)if(keep[m]&&pr[m])fl.push({m,px:(leg[m]!==undefined?leg[m]:X[m])-1+shiftU(),fixed:leg[m]!==undefined});
+   fl.sort((p,q)=>p.px-q.px);let prev=-Infinity;
+   for(const o of fl){if(!o.fixed&&o.px<prev+2.1){o.px=prev+2.1;nudge++}prev=Math.max(prev,o.px);lab[o.m]=o.px}
+   const placed=fl.map(o=>o.px);
+   for(let m=0;m<n;m++){if(!keep[m]||pr[m])continue;const px=X[m]-1+shiftU();
+    if(placed.some(q=>Math.abs(px-q)<2.1-1e-9)){keep[m]=false;hid++}else{lab[m]=px;placed.push(px)}}}
+  return {keep,stag,lab,hid,spread,nudge,leg,legd,descd,legs}}
+function build(k,C){
+ const [a,b]=sheets[k],{H,Sl,datum,kx,ky,hz,vt}=C,cont=true,dup=$('dup').checked,[X,Y]=XY(k,C),Pl=plan(k,C,X,Y),omit=$('hmode').value==='omit';
+ let o=[],head=HEADER;
+ o.push(gc(0)+'POLYLINE\r\n'+gc(8)+'F961\r\n'+N(66,1));
+ for(let m=0;m<X.length;m++)o.push(gc(0)+'VERTEX\r\n'+gc(8)+'F961\r\n'+N(10,X[m])+N(20,Y[m]));
+ o.push(gc(0)+'SEQEND\r\n');
+ const PL=(vs,lay)=>gc(0)+'POLYLINE\r\n'+gc(8)+lay+'\r\n'+N(66,1)+vs.map(v=>gc(0)+'VERTEX\r\n'+gc(8)+lay+'\r\n'+N(10,v[0])+N(20,v[1])).join('')+gc(0)+'SEQEND\r\n';
+ const LEG=(x,sx,d)=>PL([[x,0],[x,-d],[sx,-d],[sx,-37]],'F953');
+ const blk=(i,lay)=>{const m=i-a,x=X[m],y=Y[m],p=pts[i],sx=(lay==='F953'&&Pl.leg[m]!==undefined)?Pl.leg[m]:undefined;
+  const lx=sx!==undefined?sx-1+shiftU():(lay==='F953'&&Pl.lab[m]!==undefined)?Pl.lab[m]:x-1+shiftU();
+  let s=TEXT(lx,-15.5,2,eltxt(p.z),90,'SIMPLEX',lay)+TEXT(lx,-35.5,2,chtxt(cont?Sl[i]:Sl[i]-Sl[a]),90,'SIMPLEX',lay)+(sx!==undefined?(omit?'':LINE(x,-37,x,0,'P999'))+LEG(x,sx,Pl.legd[m]||0.4):LINE(x,-37,x,0,lay));
+  if(p.d&&$('cmt').checked){const xt=(lay==='F953'&&Pl.stag[m]!==undefined)?Pl.stag[m]:x;
+   s+=TEXT(xt,y+10,2,p.d,90,'SIMPLEX',lay);
+   if(xt!==x&&Pl.descd[m]!==undefined)s+=PL([[x,y+2.5],[x,y+Pl.descd[m]],[xt-0.2,y+Pl.descd[m]],[xt-0.2,y+10]],lay);
+   else{s+=LINE(x,y+2.5,x,y+7.5,lay);if(xt!==x)s+=LINE(x,y+7.5,xt-0.2,y+10,lay)}}
+  return s};
+ let usedP=!omit&&Object.keys(Pl.leg).length>0;
+ for(let i=a;i<=b;i++){const m=i-a;
+  if(!Pl.keep[m]){if(!omit){o.push(blk(i,'P999'));usedP=true}continue}
+  if(i===a&&dup){for(let t=0;t<2;t++)o.push(blk(i,'F953'))}
+  else{o.push(blk(i,'F953'));if(i===b&&dup){o.push(blk(i,'F953'))}}}
+ for(let j=1;2*ky*j-1<=110;j++)o.push(TEXT(-14,2*ky*j-1,2,(datum+2*j).toFixed(2),0,'SIMPLEX'));
+ o.push(TEXT(-75,57,4,'1:'+hz,0,'SIMPLEX'),TEXT(-75,23,4,'1:'+vt,0,'SIMPLEX'),gc(0)+'ENDSEC\r\n'+gc(0)+'EOF\r\n');
+ if(usedP){const an=' 0 \r\nENDTAB\r\n 0 \r\nTABLE\r\n 2 \r\nSTYLE';head=head.replace(an,' 0 \r\nLAYER\r\n 2 \r\nP999\r\n 70 \r\n 1 \r\n 62 \r\n 7 \r\n 6 \r\nCONTINUOUS\r\n'+an)}
+ return head+o.join('')}
+const fname=k=>{const b=($('proj').value||'1234001M').trim().replace(/\.\w+$/,''),m=b.match(/^(.*?)(\d+)[A-Za-z]?$/);
+ return (m?m[1]+String(+m[2]+k).padStart(m[2].length,'0'):b+(k?'_'+(k+1):''))+'P.DXF'};
+/* ---- zip (store) ---- */
+function crc32(u){let c=-1;for(let i=0;i<u.length;i++){c^=u[i];for(let k=0;k<8;k++)c=(c>>>1)^(0xEDB88320&-(c&1))}return(c^-1)>>>0}
+function makeZip(fs){const en=new TextEncoder(),parts=[],cen=[];let off=0;
+ for(const f of fs){const n=en.encode(f.name),crc=crc32(f.data),sz=f.data.length,l=new DataView(new ArrayBuffer(30));
+  l.setUint32(0,0x04034b50,true);l.setUint16(4,20,true);l.setUint16(12,0x21,true);l.setUint32(14,crc,true);l.setUint32(18,sz,true);l.setUint32(22,sz,true);l.setUint16(26,n.length,true);
+  parts.push(new Uint8Array(l.buffer),n,f.data);
+  const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,sz,true);c.setUint32(24,sz,true);c.setUint16(28,n.length,true);c.setUint32(42,off,true);
+  cen.push(new Uint8Array(c.buffer),n);off+=30+n.length+sz}
+ let cs=0;cen.forEach(p=>cs+=p.length);const e=new DataView(new ArrayBuffer(22));
+ e.setUint32(0,0x06054b50,true);e.setUint16(8,fs.length,true);e.setUint16(10,fs.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);
+ return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:'application/zip'})}
+async function save(name,data){const m=$('dlMsg');try{const d=await getDownloads();if(!d){m.textContent='Download is unavailable here.';return}await d.save({filename:name,data});m.textContent='Saved '+name}catch(e){m.textContent=(e&&e.code==='declined')?'Save cancelled.':'Could not save.'}}
+const dxfFile=k=>({name:fname(k),data:new TextEncoder().encode(build(k,calc()))});
+$('dlSel').onclick=()=>save(fname(sel),dxfFile(sel).data);
+$('dlAll').onclick=()=>save(fname(0).replace(/\d+P\.DXF$/,'')+'profile_sheets_dxf.zip',makeZip(sheets.map((_,k)=>dxfFile(k))));
+/* ---- UI ---- */
+function refresh(){
+ if(!pts.length)return;const C=calc();
+ $('shCard').classList.remove('hide');if(sel>=sheets.length)sel=0;
+ let warn=[];
+ const rows=sheets.map(([a,b],k)=>{const [XX,YY]=XY(k,C),Pl=plan(k,C,XX,YY),zs=pts.slice(a,b+1).map(p=>p.z),w=10+(C.H[b]-C.H[a])*C.kx,ymin=(Math.min(...zs)-C.datum)*C.ky,ymax=(Math.max(...zs)-C.datum)*C.ky;
+  if(w>710)warn.push('sheet '+(k+1)+' is '+w.toFixed(0)+' mm wide (frame is 710)');if(ymin<0||ymax>120)warn.push('sheet '+(k+1)+' leaves the 120 mm height (datum '+C.datum+')');
+  return '<tr data-k="'+k+'" class="'+(k===sel?'sel':'')+'"><td>'+(k+1)+'</td><td>'+fname(k)+'</td><td>'+(b-a+1)+'</td><td>'+chtxt(C.Sl[a])+' to '+chtxt(C.Sl[b])+'</td><td>'+(C.H[b]-C.H[a]).toFixed(1)+'</td><td>'+Math.min(...zs).toFixed(2)+' / '+Math.max(...zs).toFixed(2)+'</td><td>'+w.toFixed(0)+'</td><td>'+(Pl.hid+' hidden, '+Pl.spread+' spread, '+Pl.nudge+' nudged'+(Pl.legs?', '+Pl.legs+' dog-legged':''))+'</td></tr>'});
+ $('tb').innerHTML='<thead><tr><th>#</th><th>File</th><th>Points</th><th>Slope chainage</th><th>Horizontal m</th><th>Elev min / max</th><th>Width mm</th><th>Clean-up</th></tr></thead><tbody>'+rows.join('')+'</tbody>';
+ $('shMsg').className='msg '+(warn.length?'err':'ok');
+ $('shMsg').textContent=sheets.length+' sheet(s), '+pts.length+' points, scales 1:'+C.hz+' / 1:'+C.vt+', datum '+C.datum+' m.'+(C.used?' Chainage columns from the file are used.':' Chainage computed from the coordinates.')+(warn.length?' Check: '+warn.join('; ')+'.':'');
+ draw(C);if(lspInfo)report()}
+$('tb').onclick=e=>{const tr=e.target.closest('tr[data-k]');if(tr){sel=+tr.dataset.k;refresh()}};
+function draw(C){
+ const cv=$('cv'),g=cv.getContext('2d'),dpr=devicePixelRatio||1,W=cv.clientWidth||1000,H=cv.clientHeight||330;
+ cv.width=W*dpr;cv.height=H*dpr;g.setTransform(dpr,0,0,dpr,0,0);
+ const cs=getComputedStyle(document.documentElement),ink=cs.getPropertyValue('--ink'),acc=cs.getPropertyValue('--acc'),line=cs.getPropertyValue('--line'),mut=cs.getPropertyValue('--mut');
+ const [XX,YY]=XY(sel,C),Pl=plan(sel,C,XX,YY),[a,b]=sheets[sel],xe=10+(C.H[b]-C.H[a])*C.kx+12,x0=-20,y0=-40,y1=125,sc=Math.min((W-20)/(xe-x0),(H-20)/(y1-y0)),ox=10-x0*sc,oy=H-10;
+ const X=x=>ox+x*sc,Y=y=>oy-(y-y0)*sc;
+ g.strokeStyle=line;g.lineWidth=1;for(let j=0;2*C.ky*j<=120;j++){g.beginPath();g.moveTo(X(0),Y(2*C.ky*j));g.lineTo(X(xe),Y(2*C.ky*j));g.stroke()}
+ [-15,-37,0].forEach(y=>{g.beginPath();g.moveTo(X(0),Y(y));g.lineTo(X(xe),Y(y));g.stroke()});
+ g.fillStyle=mut;g.font='11px system-ui,sans-serif';g.fillText('elevation band',X(2),Y(-7));g.fillText('chainage band',X(2),Y(-26));
+ for(let j=1;2*C.ky*j-1<=110;j++)g.fillText((C.datum+2*j).toFixed(0),X(-17),Y(2*C.ky*j)+4);
+ g.strokeStyle=acc;g.lineWidth=2;g.beginPath();
+ for(let i=a;i<=b;i++){const x=X(10+(C.H[i]-C.H[a])*C.kx),y=Y((pts[i].z-C.datum)*C.ky);i===a?g.moveTo(x,y):g.lineTo(x,y)}g.stroke();
+ g.fillStyle=cs.getPropertyValue('--ink');g.lineWidth=1;g.strokeStyle=mut;
+ for(let i=a;i<=b;i++){const xv=10+(C.H[i]-C.H[a])*C.kx,y=(pts[i].z-C.datum)*C.ky;
+  if(pts[i].d&&$('cmt').checked&&Pl.keep[i-a]){const xt=Pl.stag[i-a]!==undefined?Pl.stag[i-a]:xv;g.beginPath();g.moveTo(X(xv),Y(y+2.5));g.lineTo(X(xv),Y(y+7.5));if(xt!==xv)g.lineTo(X(xt),Y(y+10));g.stroke();g.save();g.translate(X(xt)+3,Y(y+10));g.rotate(-Math.PI/2);g.font='10px system-ui,sans-serif';g.fillText(pts[i].d.slice(0,26),0,0);g.restore()}}
+ g.fillStyle=mut;g.font='11px system-ui,sans-serif';g.fillText('sheet '+(sel+1)+' of '+sheets.length+'   1:'+C.hz+' / 1:'+C.vt,X(0),12)}
+$('csv').onchange=async e=>{const f=e.target.files[0];if(!f)return;const m=$('csvMsg');let R;
+ if(/\.xlsx?$/i.test(f.name)){
+  if(typeof XLSX==='undefined'){m.className='msg err';m.textContent='The Excel reader could not load. Save the file as CSV instead.';return}
+  const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+  R=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''}).map(r=>r.map(v=>String(v))).filter(r=>r.some(x=>x!==''))}
+ else R=parseCSV(await f.text());
+ $('proj').value=f.name.replace(/\.\w+$/,'');
+ const p=R.length>1?loadPts(R):null;if(!p||p.length<2){m.className='msg err';m.textContent='Could not find S.NO, EASTING, NORTHING, ELEVATION columns.';return}
+ pts=p;m.className='msg ok';m.textContent=pts.length+' points loaded from '+f.name+'.';sel=0;refresh()};
+['proj','hz','vt','dat','dup','useCh','split','cmt','shift','thin','hmode','minmm','stag','leg','sp','rules'].forEach(id=>$(id).oninput=refresh);
+/* ---- PROFDXF.LSP analysis ---- */
+const dirTxt=a=>({0:'right (east)',90:'up',180:'left (west)',270:'down'}[a]||a+' degrees');
+function analyze(t){
+ const L=t.split(/\r?\n/),r={steps:[],defuns:[],moves:[],wins:[]};
+ r.name=(t.match(/Program Name\s*:\s*(.+)/)||[])[1];r.date=(t.match(/Date\s*:\s*(.+)/)||[])[1];r.prog=(t.match(/Programmer\s*:\s*(.+)/)||[])[1];
+ L.forEach(l=>{const m=l.match(/^\s*(\d)\)\s+(.*\S)/);if(m)r.steps.push(m[1]+') '+m[2])});
+ for(const m of t.matchAll(/\(Defun\s+(C:)?([\w-]+)/gi))r.defuns.push((m[1]||'')+m[2]);
+ for(const m of t.matchAll(/\(command\s+"move"\s+"(\w+)"\s+"([^"]+)"\s+"([^"]+)"\s+""\s+"[^"]+"\s+"@([\d.]+)<(\d+)"/gi))r.moves.push({mode:m[1],p1:m[2],p2:m[3],d:+m[4],a:+m[5]});
+ for(const m of t.matchAll(/\(command\s+"move"\s+Rem_Set\s+""\s+"[^"]+"\s+"@([\d.]+)<(\d+)"/gi))r.moves.push({mode:'sel',p1:'profile comments',p2:'F953 text inside 0,0 to 710,120',d:+m[1],a:+m[2]});
+ for(const m of t.matchAll(/\(ssget\s+"(\w+)"\s+(?:'\(\(([^)]*)\)\s*\(([^)]*)\)\s*\(([^)]*)\)\s*\(([^)]*)\)\)|'\(([-\d. ]+)\)\s+'\(([-\d. ]+)\))/gi)){
+  const n=s=>s.trim().split(/\s+/).map(Number);
+  r.wins.push(m[2]?{mode:m[1],pts:[m[2],m[3],m[4],m[5]].map(n)}:{mode:m[1],pts:[n(m[6]),n(m[7])]})}
+ r.layer=(t.match(/"layer"\s+"C"\s+(\d+)\s+"(\w+)"/i)||[]).slice(1);r.clayer=(t.match(/"CLAYER"\s+"(\w+)"/i)||[])[1];
+ r.scaleDiv=(t.match(/\(\/\s*HzScl\s+([\d.]+)\)/i)||[])[1];r.dollar=/REP_TEXT[^)]*"\$"/i.test(t);r.dup=/Delete_Duplicates/i.test(t);r.save=/\(command\s+"save"/i.test(t);
+ return r}
+const inWin=(w,x,y,h)=>{const [p,q]=w.pts.length===2?w.pts:[[Math.min(...w.pts.map(a=>a[0])),Math.min(...w.pts.map(a=>a[1]))],[Math.max(...w.pts.map(a=>a[0])),Math.max(...w.pts.map(a=>a[1]))]];
+ const x0=Math.min(p[0],q[0]),x1=Math.max(p[0],q[0]),y0=Math.min(p[1],q[1]),y1=Math.max(p[1],q[1]);return x>=x0&&x<=x1&&y>=y0&&y<=y1};
+function report(){
+ const r=lspInfo,C=pts.length?calc():null,li=x=>'<li>'+x+'</li>';let h='';
+ h+='<p><b>'+(r.name||'PROFDXF.LSP')+'</b> '+(r.date?'('+r.date.trim()+')':'')+' '+(r.prog?'by '+r.prog.trim():'')+'. Commands defined: '+r.defuns.map(x=>'<code>'+x+'</code>').join(' ')+'.</p>';
+ h+='<p><b>What it does with the profile DXF</b> (as listed in its header):</p><ul>'+r.steps.map(li).join('')+'</ul>';
+ h+='<p><b>Operations found in the code</b></p><div class="tw"><table><thead><tr><th>Operation</th><th>Window or setting</th><th>Effect</th></tr></thead><tbody>';
+ h+='<tr><td>DXFIN</td><td>layer '+(r.layer[1]||'F961')+' colour '+(r.layer[0]||'210')+'</td><td>Profile line is on layer <code>F961</code>; text, ordinates and labels are on <code>F953</code></td></tr>';
+ r.moves.forEach(m=>{h+='<tr><td>MOVE ('+m.mode+')</td><td>'+m.p1+' to '+m.p2+'</td><td>Shift labels '+m.d+' '+dirTxt(m.a)+' to centre them in their band</td></tr>'});
+ if(r.dollar)h+='<tr><td>REP_TEXT</td><td>profile comments</td><td>Replaces <code>$</code> with <code>"</code> (inch mark)</td></tr>';
+ if(r.dup)h+='<tr><td>Delete_Duplicates</td><td>window 0,-37 to 710,120</td><td>Erases repeated entities, which is why the first and last point are written twice</td></tr>';
+ if(r.scaleDiv)h+='<tr><td>SCALE</td><td>factor = HzScl / '+r.scaleDiv+'</td><td>The horizontal scale is read from the <code>1:2000</code> text (characters after "1:"), so sheet millimetres become real units</td></tr>';
+ if(r.save)h+='<tr><td>SAVE</td><td>same base name</td><td><code>1234001P.DXF</code> is saved as <code>1234001P.DWG</code></td></tr>';
+ h+='</tbody></table></div><p><b>Checks against the generated DXF</b></p><ul>';
+ const sw=r.wins.find(w=>w.mode==='C'&&w.pts.length===2&&w.pts[0][0]<-40);
+ if(sw){h+=li('Scale text window ('+sw.pts[0].join(', ')+') to ('+sw.pts[1].join(', ')+'): the generated <code>1:'+(C?C.hz:'2000')+'</code> text sits at -75,57, inside the crossing window, so the horizontal scale is read correctly.')}
+ const dw=r.wins.find(w=>w.mode==='W');
+ if(dw&&C){const wide=sheets.map(([a,b],k)=>[k+1,10+(C.H[b]-C.H[a])*C.kx]).filter(s=>s[1]>dw.pts[1][0]);h+=li(wide.length?'Sheets wider than the '+dw.pts[1][0]+' mm window: '+wide.map(s=>s[0]).join(', ')+'.':'All sheets fit inside the '+dw.pts[1][0]+' mm wide window (the widest is '+Math.max(...sheets.map(([a,b])=>10+(C.H[b]-C.H[a])*C.kx)).toFixed(0)+' mm).')}
+ h+=li('Elevation labels at y = -14 and chainage labels at y = -35.5 fall in the bands the MOVE steps expect (0 to -15 and -15 to -37).');
+ h+=li('REP_TEXT and elimits are called but not defined in this file; they come from other LISP files loaded in the drawing.');
+ $('rep').innerHTML=h+'</ul>'}
+$('lsp').onchange=async e=>{const f=e.target.files[0];if(!f)return;lspInfo=analyze(await f.text());$('lspMsg').className='msg ok';$('lspMsg').textContent='Analysed '+f.name+'.';report()};
+</script><script>
+(async()=>{
+ const SET=['hz','vt','dat','shift','useCh','split','cmt','dup','thin','hmode','minmm','stag','leg','sp','rules'];
+ const card=$('dbCard'),msg=$('dbMsg');
+ const say=(t,c)=>{msg.className='msg small '+(c||'');msg.textContent=t};
+ const getSet=()=>{const o={};SET.forEach(id=>{const e=$(id);o[id]=e.type==='checkbox'?e.checked:e.value});return o};
+ const putSet=o=>{SET.forEach(id=>{if(o[id]===undefined)return;const e=$(id);if(e.type==='checkbox')e.checked=!!o[id];else e.value=o[id]})};
+ let db=null,user=null;
+ try{db=await claude.use('db');user=await claude.use('user')}catch(e){db=null}
+ if(!db){return}
+ card.classList.remove('hide');
+ const sref=db.doc('settings/default');let ready=false,timer=null,uid='';
+ try{uid=user?String(await user.id()):''}catch(e){}
+ try{const s=await sref.get();if(s.exists){putSet(s.data().values||{});if(typeof refresh==='function')refresh()}say('Database connected.','ok')}
+ catch(e){say('Database connected, but the saved settings could not be read.','err')}
+ ready=true;
+ const saveSet=()=>{if(!ready)return;clearTimeout(timer);timer=setTimeout(async()=>{try{await sref.set({values:getSet(),updatedAt:Date.now(),by:uid})}catch(e){say('Could not save settings: '+(e.message||e.code||'refused'),'err')}},800)};
+ SET.forEach(id=>$(id).addEventListener('input',saveSet));
+ const slug=s=>s.trim().replace(/[^\w.-]+/g,'_').slice(0,80);
+ $('dbSave').onclick=async()=>{
+  const name=$('dbName').value.trim()||$('proj').value.trim();
+  if(!name||!slug(name)){say('Enter a name first.','err');return}
+  if(!pts.length){say('Load a points file first.','err');return}
+  const rows=pts.map(p=>[p.n,p.e,p.y,p.z,p.d,isFinite(p.hc)?p.hc:null,isFinite(p.sc)?p.sc:null]);
+  if(JSON.stringify(rows).length>200000){say('This file is too large to store in one record.','err');return}
+  try{await db.doc('profiles/'+slug(name)).set({name,rows,values:getSet(),savedAt:Date.now(),by:uid});say('Saved “'+name+'”.','ok')}
+  catch(e){say('Could not save: '+(e.message||e.code||'refused'),'err')}};
+ const tb=$('dbList');
+ db.collection('profiles').orderBy('savedAt','desc').limit(50).onSnapshot(snap=>{
+  tb.textContent='';
+  const h=tb.createTHead().insertRow();['Name','Points','Saved',''].forEach(t=>{const c=document.createElement('th');c.textContent=t;h.appendChild(c)});
+  const b=tb.createTBody();
+  if(!snap.docs.length){const r=b.insertRow(),c=r.insertCell();c.colSpan=4;c.textContent='Nothing saved yet.';return}
+  snap.docs.forEach(d=>{const v=d.data(),r=b.insertRow();
+   r.insertCell().textContent=v.name||d.id;r.insertCell().textContent=(v.rows||[]).length;r.insertCell().textContent=new Date(v.savedAt||0).toLocaleString();
+   const c=r.insertCell(),lb=document.createElement('button'),xb=document.createElement('button');
+   lb.textContent='Load';lb.className='sec';xb.textContent='Delete';xb.className='sec';xb.style.marginLeft='6px';
+   lb.onclick=()=>{pts=(v.rows||[]).map(a=>({n:a[0],e:a[1],y:a[2],z:a[3],d:a[4],hc:a[5]==null?NaN:a[5],sc:a[6]==null?NaN:a[6]}));putSet(v.values||{});$('proj').value=v.name||d.id;$('dbName').value=v.name||d.id;sel=0;$('csvMsg').className='msg ok';$('csvMsg').textContent=pts.length+' points loaded from the database ('+(v.name||d.id)+').';refresh()};
+   xb.onclick=async()=>{if(!confirm('Delete “'+(v.name||d.id)+'” from the database?'))return;try{await d.ref?d.ref.delete():db.doc('profiles/'+d.id).delete()}catch(e){say('Could not delete: '+(e.message||e.code||'refused'),'err')}};
+   c.appendChild(lb);c.appendChild(xb)})},
+  e=>say('Could not read saved profiles: '+(e.message||e.code),'err'));
+})();
+</script>
+</body></html>
